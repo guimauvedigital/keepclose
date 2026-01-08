@@ -20,7 +20,13 @@ data class AudioPayload(
 @Serializable
 data class TtsPayload(
     val text: String,
-    val voiceId: String? = null
+    val voiceId: String? = null,
+    val modelId: String? = null,
+    val speed: Double? = null,
+    val stability: Double? = null,
+    val similarityBoost: Double? = null,
+    val style: Double? = null,
+    val speakerBoost: Boolean? = null
 )
 
 @Serializable

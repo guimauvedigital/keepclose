@@ -57,10 +57,16 @@ class MessageService(
 
                 logger.debug("Generating TTS audio for text: ${ttsPayload.text.take(50)}...")
 
-                // Generate audio using ElevenLabs
+                // Generate audio using ElevenLabs with all parameters
                 val audioBytes = elevenLabsClient.generateAudio(
                     text = ttsPayload.text,
-                    voiceId = ttsPayload.voiceId
+                    voiceId = ttsPayload.voiceId,
+                    modelId = ttsPayload.modelId,
+                    speed = ttsPayload.speed,
+                    stability = ttsPayload.stability,
+                    similarityBoost = ttsPayload.similarityBoost,
+                    style = ttsPayload.style,
+                    speakerBoost = ttsPayload.speakerBoost
                 ).getOrElse { error ->
                     logger.error("Failed to generate TTS audio", error)
                     return Result.failure(error)

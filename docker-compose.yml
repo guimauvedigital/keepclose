@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  keepclose:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: keepclose
+    ports:
+      - "8080:8080"  # Ktor API
+      - "3001:3001"  # Baileys sidecar
+    environment:
+      # Ktor
+      - PORT=8080
+
+      # API Security
+      - API_KEY=${API_KEY:-}
+
+      # Baileys
+      - BAILEYS_URL=http://localhost:3001
+      - BAILEYS_AUTH_PATH=/data/auth_info
+      - VOICES_PATH=/data/voices
+
+      # ElevenLabs
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - ELEVENLABS_DEFAULT_VOICE_ID=${ELEVENLABS_DEFAULT_VOICE_ID:-}
+
+      # Audio storage
+      - AUDIO_STORAGE_PATH=/data/audio
+    volumes:
+      # Persist WhatsApp auth state
+      - ./data/auth_info:/data/auth_info
+
+      # Auto-downloaded voice messages (persistent)
+      - ./data/voices:/data/voices
+
+      # Pre-recorded audio files
+      - ./audio:/data/audio
+
+      # Temp audio files (TTS generated)
+      - temp_audio:/data/audio/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  temp_audio:

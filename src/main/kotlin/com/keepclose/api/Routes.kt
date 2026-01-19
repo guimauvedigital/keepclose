@@ -1,9 +1,15 @@
 package com.keepclose.api
 
+import com.keepclose.api.dto.CreateContactRequest
+import com.keepclose.api.dto.CreateContactResponse
+import com.keepclose.api.dto.DeleteContactRequest
 import com.keepclose.api.dto.SendMessageRequest
 import com.keepclose.api.dto.SendMessageResponse
 import com.keepclose.config.validateApiKey
 import com.keepclose.domain.MessageService
+import com.keepclose.infrastructure.contacts.ContactData
+import com.keepclose.infrastructure.contacts.ICloudContactsClient
+import com.keepclose.infrastructure.contacts.LabeledUrlData
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -15,6 +21,7 @@ fun Application.configureRouting() {
     routing {
         healthRoutes()
         messageRoutes()
+        contactRoutes()
     }
 }
 
@@ -108,6 +115,122 @@ fun Route.messageRoutes() {
                     )
                 )
             }
+        }
+    }
+}
+
+fun Route.contactRoutes() {
+    val icloudClient by inject<ICloudContactsClient>()
+
+    route("/api/v1") {
+        post("/contacts") {
+            if (!call.validateApiKey()) {
+                return@post
+            }
+
+            try {
+                val request = call.receive<CreateContactRequest>()
+
+                if (request.userId.isBlank()) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        CreateContactResponse(
+                            success = false,
+                            error = "userId is required"
+                        )
+                    )
+                }
+
+                if (request.phoneNumber.isBlank()) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        CreateContactResponse(
+                            success = false,
+                            error = "phoneNumber is required"
+                        )
+                    )
+                }
+
+                val contactData = ContactData(
+                    userId = request.userId,
+                    phoneNumber = request.phoneNumber,
+                    displayName = request.displayName,
+                    email = request.email,
+                    organization = request.organization,
+                    title = request.title,
+                    urls = request.urls?.map { LabeledUrlData(it.url, it.label) },
+                    notes = request.notes
+                )
+
+                val result = icloudClient.createOrUpdateContact(contactData)
+
+                result.fold(
+                    onSuccess = { contactResult ->
+                        call.respond(
+                            if (contactResult.updated) HttpStatusCode.OK else HttpStatusCode.Created,
+                            CreateContactResponse(
+                                success = true,
+                                contactId = contactResult.contactId,
+                                updated = contactResult.updated
+                            )
+                        )
+                    },
+                    onFailure = { error ->
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            CreateContactResponse(
+                                success = false,
+                                error = error.message
+                            )
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    CreateContactResponse(
+                        success = false,
+                        error = e.message ?: "Invalid request"
+                    )
+                )
+            }
+        }
+
+        delete("/contacts/{contactId}") {
+            if (!call.validateApiKey()) {
+                return@delete
+            }
+
+            val contactId = call.parameters["contactId"]
+            if (contactId.isNullOrBlank()) {
+                return@delete call.respond(
+                    HttpStatusCode.BadRequest,
+                    CreateContactResponse(
+                        success = false,
+                        error = "contactId is required"
+                    )
+                )
+            }
+
+            val result = icloudClient.deleteContact(contactId)
+
+            result.fold(
+                onSuccess = {
+                    call.respond(
+                        HttpStatusCode.OK,
+                        CreateContactResponse(success = true)
+                    )
+                },
+                onFailure = { error ->
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        CreateContactResponse(
+                            success = false,
+                            error = error.message
+                        )
+                    )
+                }
+            )
         }
     }
 }

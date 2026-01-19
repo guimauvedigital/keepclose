@@ -98,8 +98,16 @@ class BaileysClient(
     }
 
     private fun formatPhoneNumber(number: String): String {
-        // Remove + and any non-digit characters
-        return number.replace("+", "").replace(Regex("[^0-9]"), "")
+        // Remove all non-digit characters
+        val digits = number.replace(Regex("[^0-9]"), "")
+
+        // Remove leading 0 after European country codes (e.g., 330767... -> 33767...)
+        // This handles cases like +33 0 7 67 00 94 69 where the 0 after country code should be removed
+        // Covers country codes 30-39 (France 33, Belgium 32, Spain 34, Italy 39, etc.)
+        // and 40-49 (UK 44, Germany 49, Switzerland 41, etc.)
+        return digits.replace(Regex("^(3[0-9]|4[0-9])0(\\d+)$")) { match ->
+            "${match.groupValues[1]}${match.groupValues[2]}"
+        }
     }
 }
 

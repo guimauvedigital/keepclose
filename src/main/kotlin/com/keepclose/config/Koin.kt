@@ -1,6 +1,7 @@
 package com.keepclose.config
 
 import com.keepclose.domain.MessageService
+import com.keepclose.infrastructure.contacts.ICloudContactsClient
 import com.keepclose.infrastructure.storage.AudioStorage
 import com.keepclose.infrastructure.tts.ElevenLabsClient
 import com.keepclose.infrastructure.whatsapp.BaileysClient
@@ -47,6 +48,7 @@ val appModule = module {
     single { BaileysClient(get(), get()) }
     single { ElevenLabsClient(get(), get()) }
     single { AudioStorage(get()) }
+    single { ICloudContactsClient(get(), get()) }
 
     // Domain Services
     single { MessageService(get(), get(), get()) }

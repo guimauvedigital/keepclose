@@ -21,6 +21,8 @@ const VOICES_PATH = process.env.VOICES_PATH || './downloaded_voices';
 let sock: WASocket | null = null;
 let currentQR: string | null = null;
 let connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'qr_pending' = 'disconnected';
+let reconnectAttempts = 0;
+const MAX_RECONNECT_DELAY = 60_000; // 1 minute max
 
 // Stats for downloaded voices
 let voiceStats = {
@@ -69,8 +71,9 @@ async function autoDownloadVoice(message: proto.IWebMessageInfo) {
       return;
     }
 
-    // Save file with timestamp
-    const fileName = `voice_${timestamp}.ogg`;
+    // Save file with timestamp and direction (sent/received)
+    const direction = message.key?.fromMe ? 'sent' : 'received';
+    const fileName = `${direction}_voice_${timestamp}.ogg`;
     const filePath = path.join(chatFolder, fileName);
     fs.writeFileSync(filePath, buffer as Buffer);
 
@@ -107,21 +110,25 @@ export async function initializeWhatsApp() {
     }
 
     if (connection === 'close') {
-      const shouldReconnect =
-        (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-      logger.info('Connection closed. Reconnecting:', shouldReconnect);
+      logger.info(`Connection closed (status: ${statusCode}). Reconnecting: ${shouldReconnect}`);
       connectionStatus = 'disconnected';
 
       if (shouldReconnect) {
+        reconnectAttempts++;
+        const backoffDelay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), MAX_RECONNECT_DELAY);
+        logger.info(`Reconnecting in ${backoffDelay}ms (attempt ${reconnectAttempts})...`);
         connectionStatus = 'connecting';
-        await delay(5000);
+        await delay(backoffDelay);
         await initializeWhatsApp();
       }
     } else if (connection === 'open') {
       logger.info('WhatsApp connection opened successfully');
       connectionStatus = 'connected';
       currentQR = null;
+      reconnectAttempts = 0;
     } else if (connection === 'connecting') {
       connectionStatus = 'connecting';
       logger.info('Connecting to WhatsApp...');

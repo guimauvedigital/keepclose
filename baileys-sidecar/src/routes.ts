@@ -151,7 +151,7 @@ export function setupRoutes(app: Express) {
         });
       }
 
-      const { chatId, messagesLimit = 100, outputDir = './downloaded_voices' } = req.body;
+      const { chatId, messagesLimit = 100, outputDir = './downloaded_voices', onlySent = false } = req.body;
 
       if (!chatId) {
         return res.status(400).json({
@@ -166,7 +166,7 @@ export function setupRoutes(app: Express) {
       logger.info(`🎙️ Starting progressive voice download for ${formattedChatId}...`);
 
       // Start download in background
-      downloadVoicesFromChat(sock, formattedChatId, messagesLimit, outputDir)
+      downloadVoicesFromChat(sock, formattedChatId, messagesLimit, outputDir, onlySent)
         .then(progress => {
           logger.info('Download completed:', progress);
         })
@@ -201,12 +201,12 @@ export function setupRoutes(app: Express) {
         });
       }
 
-      const { messagesLimit = 100, outputDir = './downloaded_voices' } = req.body;
+      const { messagesLimit = 100, outputDir = './downloaded_voices', onlySent = false } = req.body;
 
-      logger.info(`🎙️ Starting progressive voice download for ALL conversations...`);
+      logger.info(`🎙️ Starting progressive voice download for ALL conversations${onlySent ? ' (only sent messages)' : ''}...`);
 
       // Start download in background
-      downloadVoicesFromAllChats(sock, messagesLimit, outputDir)
+      downloadVoicesFromAllChats(sock, messagesLimit, outputDir, onlySent)
         .then(progress => {
           logger.info('All downloads completed:', progress);
         })
@@ -261,6 +261,37 @@ export function setupRoutes(app: Express) {
       res.status(500).json({
         success: false,
         error: error.message || 'Failed to list voices',
+      });
+    }
+  });
+
+  // Identify sent voice messages from existing files
+  app.get('/voices/identify-sent', (req: Request, res: Response) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+
+      const voicesPath = process.env.VOICES_PATH || './downloaded_voices';
+      const sentVoices: string[] = [];
+
+      // Parse all downloaded voices and check if filename suggests it's sent
+      // This is a temporary solution - will need to cross-reference with actual message data
+      const result = listDownloadedVoices();
+
+      logger.info(`Found ${result.total} voices to analyze`);
+
+      // For now, return the structure so we can build a proper solution
+      res.json({
+        success: true,
+        message: 'Analysis endpoint - need to implement message store lookup',
+        totalVoices: result.total,
+        note: 'This endpoint needs to query the message store to identify fromMe messages'
+      });
+    } catch (error: any) {
+      logger.error('Error identifying sent voices:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to identify sent voices',
       });
     }
   });

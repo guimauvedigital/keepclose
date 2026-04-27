@@ -1,4 +1,4 @@
-import { WASocket, downloadMediaMessage, proto } from '@whiskeysockets/baileys';
+import { WASocket, downloadMediaMessage, proto } from 'baileys';
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -58,10 +58,11 @@ async function downloadVoiceMessage(
       return false;
     }
 
-    // Créer le nom de fichier avec timestamp
+    // Créer le nom de fichier avec timestamp et direction
     const timestamp = message.messageTimestamp?.toString() || Date.now().toString();
     const from = message.key?.remoteJid?.split('@')[0] || 'unknown';
-    const fileName = `${from}_${timestamp}.ogg`;
+    const direction = message.key?.fromMe ? 'sent' : 'received';
+    const fileName = `${direction}_${from}_${timestamp}.ogg`;
     const filePath = path.join(outputDir, fileName);
 
     // Sauvegarder le fichier
@@ -80,7 +81,8 @@ export async function downloadVoicesFromChat(
   sock: WASocket,
   chatId: string,
   messagesLimit: number = 100,
-  outputDir: string = './downloaded_voices'
+  outputDir: string = './downloaded_voices',
+  onlySent: boolean = false
 ): Promise<DownloadProgress> {
 
   if (downloadProgress.status === 'running') {
@@ -124,7 +126,8 @@ export async function downloadVoicesFromChat(
     const voiceMessages = result.filter(
       (msg: any) =>
         msg.key?.remoteJid === chatId &&
-        msg.message?.audioMessage?.ptt === true
+        msg.message?.audioMessage?.ptt === true &&
+        (!onlySent || msg.key?.fromMe === true)
     );
 
     logger.info(`Found ${voiceMessages.length} voice messages 🎙️`);
@@ -188,7 +191,8 @@ export async function downloadVoicesFromChat(
 export async function downloadVoicesFromAllChats(
   sock: WASocket,
   messagesLimit: number = 100,
-  outputDir: string = './downloaded_voices'
+  outputDir: string = './downloaded_voices',
+  onlySent: boolean = false
 ): Promise<DownloadProgress> {
 
   if (downloadProgress.status === 'running') {
@@ -234,6 +238,10 @@ export async function downloadVoicesFromAllChats(
 
     result.forEach((msg: any) => {
       if (msg.message?.audioMessage?.ptt === true && msg.key?.remoteJid) {
+        // Filtrer par direction si demandé
+        if (onlySent && msg.key?.fromMe !== true) {
+          return;
+        }
         const chatId = msg.key.remoteJid;
         if (!chatsWithVoices.has(chatId)) {
           chatsWithVoices.set(chatId, []);
